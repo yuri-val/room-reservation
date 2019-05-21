@@ -1,74 +1,51 @@
 <template>
-  <DayPilotScheduler id="dp" :config="config" ref="scheduler" />
+  <div class="layout">
+    <DayPilotScheduler id="dp" :config="config" ref="scheduler" />
+    <modal-edit :current-event="currentEvent" :editing="editing" :ok="handleConfirm" :cancel="handleCancel" v-if="editing" />
+  </div>
 </template>
 
 <script>
 import {DayPilot, DayPilotScheduler} from 'daypilot-pro-vue'
 import Vue from 'vue'
+import ModalEdit from './ModalEdit'
+import config from '../utils/config';
+import EventService from '../utils/eventService';
+import { resources, events } from '../mock'
+import { debuglog } from 'util';
+
 
 export default {
   name: 'Scheduler',
   data: function() {
     return {
       config: {
-        locale: "ru-ru",
-        timeHeaders: [{"groupBy":"Month"},{"groupBy":"Day","format":"d"}],
-        scale: "Day",
-        days: DayPilot.Date.today().daysInMonth(),
-        startDate: DayPilot.Date.today().firstDayOfMonth(),
-        timeRangeSelectedHandling: "Enabled",
-        onTimeRangeSelected: function (args) {
-          var dp = this;
-          DayPilot.Modal.prompt("Create a new event:", "Event 1").then(function(modal) {
-            dp.clearSelection();
-            if (!modal.result) { return; }
-            dp.events.add(new DayPilot.Event({
-              start: args.start,
-              end: args.end,
-              id: DayPilot.guid(),
-              resource: args.resource,
-              text: modal.result
-            }));
-          });
+        ...config,
+        onTimeRangeSelected: (args) => this.editEvent(args, true),
+        onEventClick: (args) => this.editEvent(args.e),
+        onBeforeEventRender: args => {
+          args.data.html = this.renderEvent(args.data, args.e);
         },
-        eventMoveHandling: "Update",
-        onEventMoved: function (args) {
-          this.message("Event moved: " + args.e.text());
-        },
-        eventResizeHandling: "Update",
-        onEventResized: function (args) {
-          this.message("Event resized: " + args.e.text());
-        },
-        eventDeleteHandling: "Update",
-        onEventDeleted: function (args) {
-          this.message("Event deleted: " + args.e.text());
-        },
-        eventClickHandling: "Edit",
-        eventEditHandling: "Update",
-        onEventEdited: function (args) {
-          this.message("Event edited: " + args.e.text());
-        },
-        eventHoverHandling: "Bubble",
-        bubble: new DayPilot.Bubble({
-          onLoad: function(args) {
-            // if event object doesn't specify "bubbleHtml" property 
-            // this onLoad handler will be called to provide the bubble HTML
-            args.html = "Event details";
-          }
-        }),
         contextMenu: new DayPilot.Menu({
           items: [
-            { text: "Delete", onClick: function(args) { var dp = args.source.calendar; dp.events.remove(args.source); } }
+            { text: "Редактировать", onClick: (args) => this.editEvent(args.source) },
+            { text: "Отмена", onClick: (args) => this.cancelEvent(args.source) },
+            
           ]
         }),
-        treeEnabled: true,
+        eventHeight: 50
       },
+      editing: false,
+      currentEvent: {},
+      eventService: null
     }
   },
   props: {
   },
   components: {
-    DayPilotScheduler
+    DayPilotScheduler,
+    ModalEdit,
+    Event
   },
   computed: {
     // DayPilot.Scheduler object - https://api.daypilot.org/daypilot-scheduler-class/
@@ -78,26 +55,91 @@ export default {
   },
   methods: {
     loadEvents() {
-      const events = [
-        // { id: 1, start: "2018-10-01T00:00:00", end: "2018-10-05T00:00:00", text: "Event 1", resource: "R1" },
-        { id: 2, start: DayPilot.Date.today().addDays(2), end: DayPilot.Date.today().addDays(5), text: "Event 1", resource: "R2"}
-      ];
       Vue.set(this.config, "events", events);
     },
     loadResources() {
-      const resources = [
-        {name: "Resource 1", id: "R1"},
-        {name: "Resource 2", id: "R2"},
-        {name: "Resource 3", id: "R3"}
-      ];
       Vue.set(this.config, "resources", resources);
+    },
+    handleConfirm () {
+      if (!this.currentEvent.create){
+        this.eventService.updateEvent(this.currentEvent);
+      } else {
+        this.eventService.createEvent(this.currentEvent);
+      }
+      this.editing = false;
+    },
+    handleCancel () {
+      this.currentEvent = {};
+      this.editing = false;
+    },
+    editEvent (_data, create = false ) {
+      let event = _data
+      if (create) event = { id: DayPilot.guid(), data: _data, create }
+      this.currentEvent = this.mapEventToForm(event);
+      this.editing = true;
+    },
+    cancelEvent (event) {
+      event.data.status = 'Отменен';
+      this.scheduler.events.update(event);
+    },
+    mapEventToForm (event) {
+      return {
+        ...event.data,
+        id: event.id,
+        start: this.$moment(event.data.start.value),
+        end: this.$moment(event.data.end.value),
+        create: event.create
+      }
+    },
+    renderEvent (event, e) {
+      let html = `<h3>${event.text}<h5>(${event.start.toString("dd.MM.yyyy")} - ${event.end.toString("dd.MM.yyyy")})</h5></h3>`
+
+      let paidColor = "#aaaaaa";
+      let paid = event.complete;
+      e.areas = [
+          { top: 2, right: 4, html: `<p class="status">${event.status || ''}</p>`, v: "Visible"},
+          { bottom: 5, right: 4, html: "<div style='color:" + paidColor + "; font-size: 8pt;'>Оплачено: " + paid + "%</div>", v: "Visible"},
+          { left: 4, bottom: 5, right: 4, height: 2, html: "<div style='background-color:" + paidColor + "; height: 100%; width:" + paid + "%'></div>", v: "Visible" }
+      ];
+      e.bubbleHtml = html + e.areas.map( area => area.html).join('');
+      e.barColor = event.status === 'Отменен' ? 'red' : 'green';
+      return html;
     }
   },
   mounted: function() {
     this.loadResources();
     this.loadEvents();
-
+    this.eventService = new EventService(this.scheduler);
+    this.scheduler.scrollTo(DayPilot.Date.today());
     this.scheduler.message("Welcome!");
   }
 }
 </script>
+
+<style>
+.scheduler_default_rowheader_inner
+  {
+      border-right: 1px solid #ccc;
+  }
+  .scheduler_default_rowheader.scheduler_default_rowheadercol2
+  {
+      background: #fff;
+  }
+  .scheduler_default_rowheadercol2 .scheduler_default_rowheader_inner
+  {
+      top: 2px;
+      bottom: 2px;
+      left: 2px;
+      background-color: transparent;
+      border-left: 5px solid #1a9d13; /* green */
+      border-right: 0px none;
+  }
+  .status_dirty.scheduler_default_rowheadercol2 .scheduler_default_rowheader_inner
+  {
+      border-left: 5px solid #ea3624; /* red */
+  }
+  .status_cleanup.scheduler_default_rowheadercol2 .scheduler_default_rowheader_inner
+  {
+      border-left: 5px solid #f9ba25; /* orange */
+  }
+</style>
