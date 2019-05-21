@@ -12,7 +12,6 @@ import ModalEdit from './ModalEdit'
 import config from '../utils/config';
 import EventService from '../utils/eventService';
 import { resources, events } from '../mock'
-import { debuglog } from 'util';
 
 
 export default {
