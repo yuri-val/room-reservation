@@ -39,5 +39,6 @@
     document.addEventListener("DOMContentLoaded", function() {
       document.querySelector('div.scheduler_default_corner div:last-child').remove();
     })
+    window.alert = function(...args) { throw new Error(args) };
   </script>
 </html>
