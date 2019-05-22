@@ -24,6 +24,11 @@ export default {
         onEventClick: (args) => this.editEvent(args.e),
         onBeforeEventRender: args => {
           args.data.html = this.renderEvent(args.data, args.e);
+          args.data.height = 50;
+        },
+        onBeforeCellRender: (args) => { 
+          let row = this.scheduler.rows.find(args.cell.resource) 
+          if (row.data.cellsDisabled) args.cell.backColor = 'rgb(243, 243, 243)'  
         },
         contextMenu: new DayPilot.Menu({
           items: [
@@ -32,7 +37,7 @@ export default {
             
           ]
         }),
-        eventHeight: 50
+        eventHeight: 20
       },
       editing: false,
       currentEvent: {},
@@ -118,27 +123,27 @@ export default {
 <style>
 .scheduler_default_rowheader_inner
   {
-      border-right: 1px solid #ccc;
+    border-right: 1px solid #ccc;
   }
   .scheduler_default_rowheader.scheduler_default_rowheadercol2
   {
-      background: #fff;
-  }
+    background: #fff;
+}
   .scheduler_default_rowheadercol2 .scheduler_default_rowheader_inner
   {
-      top: 2px;
-      bottom: 2px;
-      left: 2px;
-      background-color: transparent;
-      border-left: 5px solid #1a9d13; /* green */
-      border-right: 0px none;
+    top: 2px;
+    bottom: 2px;
+    left: 2px;
+    background-color: transparent;
+    border-left: 5px solid #1a9d13; /* green */
+    border-right: 0px none;
   }
   .status_dirty.scheduler_default_rowheadercol2 .scheduler_default_rowheader_inner
   {
-      border-left: 5px solid #ea3624; /* red */
+    border-left: 5px solid #ea3624; /* red */
   }
   .status_cleanup.scheduler_default_rowheadercol2 .scheduler_default_rowheader_inner
   {
-      border-left: 5px solid #f9ba25; /* orange */
+    border-left: 5px solid #f9ba25; /* orange */
   }
 </style>
